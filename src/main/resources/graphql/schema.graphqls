@@ -1,0 +1,38 @@
+scalar UUID
+scalar DateTime
+
+type Conference {
+    id: UUID!,
+    name: String!,
+    authorId: String!,
+    startTime: DateTime!,
+    endTime: DateTime!,
+    room: ConferenceRoom!,
+}
+
+input ConferenceInput {
+    name: String!,
+    authorId: String!,
+    startTime: DateTime!,
+    endTime: DateTime!,
+    roomId: UUID!,
+}
+
+type ConferenceRoom {
+    id: UUID!,
+    name: String!,
+    floor: Int!,
+    maxPeople: Int!,
+}
+
+type Query {
+    conferences: [Conference],
+    conferencesByRoom(roomId: UUID!): [Conference],
+
+    conferenceRooms: [ConferenceRoom],
+    conferenceRoom(roomId: UUID!): ConferenceRoom,
+}
+
+type Mutation {
+    addConference(conference: ConferenceInput!): Conference,
+}
