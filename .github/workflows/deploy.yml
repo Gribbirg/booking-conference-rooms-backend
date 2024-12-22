@@ -24,32 +24,34 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
       - name: Build with Gradle
         run: ./gradlew clean build -x test
 
       - name: Get jar file name
         run: |
           JAR_FILE=$(find ${{ github.workspace }}/build/libs/ -type f -name "*.jar" | head -n 1)
-          echo "JAR_FILE=$APK_FILE" >> $GITHUB_ENV
+          echo "JAR_FILE=$JAR_FILE" >> $GITHUB_ENV
           JAR_FILE_NAME=$(basename $JAR_FILE)
           echo "JAR_FILE_NAME=$JAR_FILE_NAME" >> $GITHUB_ENV
           echo "Jar file: $JAR_FILE_NAME"
 
+      - name: Create ssh key file
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ${{ github.workspace }}/ssh_key
+          chmod 600 ssh_key
+
       - name: Copy JAR to VM
-        uses: appleboy/scp-action@v0.1.1
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: build/libs/${{ env.JAR_FILE_NAME }}
-          target: /booking
+        run: |
+          scp -i "${{ github.workspace }}/ssh_key" -P "22" -O "${{ github.workspace }}/build/libs/${{ env.JAR_FILE_NAME }}" "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/booking"
 
       - name: Run JAR on VM
-        uses: appleboy/ssh-action@v0.1.5
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            pkill -f 'java -jar' || true
-            nohup java -jar /booking/${{ env.JAR_FILE_NAME }} &
+        run: |
+          ssh -i ssh_key ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}
+          pkill -f 'java -jar' || true
+          nohup java -jar /booking/${{ env.JAR_FILE_NAME }} &
+
+      - name: Clear ssh key
+        run: rm ssh_key
