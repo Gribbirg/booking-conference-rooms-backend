@@ -1,0 +1,55 @@
+name: Build and deploy
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+    branches:
+      - master
+  pull_request:
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build with Gradle
+        run: ./gradlew clean build -x test
+
+      - name: Get jar file name
+        run: |
+          JAR_FILE=$(find ${{ github.workspace }}/build/libs/ -type f -name "*.jar" | head -n 1)
+          echo "JAR_FILE=$APK_FILE" >> $GITHUB_ENV
+          JAR_FILE_NAME=$(basename $JAR_FILE)
+          echo "JAR_FILE_NAME=$JAR_FILE_NAME" >> $GITHUB_ENV
+          echo "Jar file: $JAR_FILE_NAME"
+
+      - name: Copy JAR to VM
+        uses: appleboy/scp-action@v0.1.1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: build/libs/${{ env.JAR_FILE_NAME }}
+          target: /booking
+
+      - name: Run JAR on VM
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            pkill -f 'java -jar' || true
+            nohup java -jar /booking/${{ env.JAR_FILE_NAME }} &
